@@ -1,10 +1,60 @@
+import 'package:bulletin/providers/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _hidePassword = true;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    FocusScope.of(context).unfocus();
+
+    final isValid = _formKey.currentState?.validate() ?? false;
+
+    if (!isValid) {
+      return;
+    }
+
+    final authProvider = context.read<AuthProvider>();
+
+    final success = await authProvider.login(
+      email: _emailController.text,
+      password: _passwordController.text,
+    );
+
+    if (success) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Logged in successfuly.')));
+
+      context.go('/');
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(authProvider.errorMessage ?? 'Login failed.')),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -17,40 +67,105 @@ class LoginScreen extends StatelessWidget {
         title: Text("Login"),
       ),
       body: Center(
-        child: SizedBox(
-          width: 400,
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(24),
+          child: SizedBox(
+            width: 400,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  Text(
+                    'Welcome Back',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
-                ),
-                SizedBox(height: 16),
-                TextField(
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
+
+                  SizedBox(height: 8),
+                  Text(
+                    'Log in to publish posts and comments.',
+                    textAlign: TextAlign.center,
                   ),
-                ),
-                SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(onPressed: () {}, child: Text('Login')),
-                ),
-                SizedBox(height: 12),
-                TextButton(
-                  onPressed: () {
-                    context.go('/register');
-                  },
-                  child: Text('Don\'t have an account? Register'),
-                ),
-              ],
+
+                  SizedBox(height: 32),
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: [AutofillHints.email],
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      final email = value?.trim() ?? '';
+
+                      if (email.isEmpty) 'Email is required';
+
+                      if (!email.contains('@')) 'Enter a valid email address';
+
+                      return null;
+                    },
+                  ),
+
+                  SizedBox(height: 16),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _hidePassword,
+                    autofillHints: [AutofillHints.newPassword],
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      border: OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        onPressed: () => {
+                          setState(() {
+                            _hidePassword = !_hidePassword;
+                          }),
+                        },
+                        icon: Icon(
+                          _hidePassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty)
+                        "Password is required";
+
+                      if (value!.length < 6)
+                        'Password must be at least 6 characters';
+
+                      return null;
+                    },
+                    onFieldSubmitted: (_) {
+                      if (!authProvider.isLoading) _login();
+                    },
+                  ),
+
+                  SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton(
+                      onPressed: authProvider.isLoading ? null : _login,
+                      child: authProvider.isLoading
+                          ? SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text('Login'),
+                    ),
+                  ),
+
+                  SizedBox(height: 12),
+                  TextButton(
+                    onPressed: authProvider.isLoading
+                        ? null
+                        : () => context.go('/register'),
+                    child: Text('Don\'t have an account? Register '),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

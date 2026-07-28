@@ -1,6 +1,9 @@
+import 'package:bulletin/providers/auth_provider.dart';
+import 'package:bulletin/providers/post_provider.dart';
 import 'package:bulletin/router.dart';
 import 'package:bulletin/supabase.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -10,7 +13,15 @@ Future<void> main() async {
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.publishableKey,
   );
-  runApp(const BulletinApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => PostProvider()),
+      ],
+      child: const BulletinApp(),
+    ),
+  );
 }
 
 class BulletinApp extends StatelessWidget {
