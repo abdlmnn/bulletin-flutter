@@ -55,6 +55,7 @@ class _PostListScreenState extends State<PostListScreen> {
               },
               child: Text('Login'),
             )
+            
           else
             Row(
               children: [
@@ -127,11 +128,13 @@ class _PostListScreenState extends State<PostListScreen> {
           return Card(
             child: ListTile(
               title: Text(post.title),
-              subtitle: Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text(post.content),
+              subtitle: Text(
+                post.content,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              onTap: () {},
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/post/${post.id}'),
             ),
           );
         },
