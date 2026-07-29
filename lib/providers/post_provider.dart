@@ -14,6 +14,27 @@ class PostProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  Future<bool> deletePost(int id) async {
+    _setLoading(true);
+    _errorMessage = null;
+
+    try {
+      await _postService.deletePost(id);
+
+      _posts.removeWhere((post) => post.id == id);
+
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Update post error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      _errorMessage = error.toString();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   Future<bool> updatePost({
     required int id,
     required String title,
