@@ -4,6 +4,16 @@ import 'package:bulletin/models/post.dart';
 class PostService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  Future<void> deletePost(int id) async {
+    final user = _supabase.auth.currentUser;
+
+    if (user == null) {
+      throw const AuthApiException('You must be logged in to delete a post');
+    }
+
+    await _supabase.from('posts').delete().eq('id', id).eq('user_id', user.id);
+  }
+
   Future<void> updatePost({
     required int id,
     required String title,
