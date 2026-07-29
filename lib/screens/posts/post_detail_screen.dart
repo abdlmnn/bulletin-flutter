@@ -1,8 +1,10 @@
+import 'package:bulletin/providers/post_provider.dart';
 import 'package:bulletin/services/post_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:bulletin/models/post.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final int id;
@@ -79,6 +81,63 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         '${localDate.minute.toString().padLeft(2, '0')}';
   }
 
+  Future<void> _confirmDeletePost() async {
+    final post = _post;
+
+    if (post == null) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Delete post?'),
+          content: Text('This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text('Cancel'),
+            ),
+
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final postProvider = context.read<PostProvider>();
+
+    final success = await postProvider.deletePost(post.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!success) {
+      final errorMessage =
+          context.read<PostProvider>().errorMessage ?? 'Unable to delete post.';
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorMessage)));
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Post deleted successfully.')));
+
+    context.go('/');
+    return;
+  }
+
   @override
   Widget build(BuildContext context) {
     final post = _post;
@@ -94,14 +153,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             context.go('/');
           },
         ),
-        title: const Text('Post Details'),
+        title: Text('Post Details'),
         actions: [
           if (isOwner)
             IconButton(
               tooltip: 'Edit post',
-
-              icon: const Icon(Icons.edit),
-
+              icon: Icon(Icons.edit),
               onPressed: () async {
                 final updated = await context.push<bool>(
                   '/post/${_post!.id}/edit',
@@ -112,6 +169,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 }
               },
             ),
+
+          IconButton(
+            tooltip: 'Delete post',
+            icon: Icon(Icons.delete_outline),
+            onPressed: _confirmDeletePost,
+          ),
         ],
       ),
 
