@@ -1,9 +1,14 @@
 import 'package:bulletin/providers/post_provider.dart';
 import 'package:bulletin/services/post_service.dart';
+import 'package:bulletin/services/post_image_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:bulletin/models/post.dart';
+
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
+import 'package:bulletin/models/post_image.dart';
 
 class EditPostScreen extends StatefulWidget {
   final int id;
@@ -18,9 +23,20 @@ class _EditPostScreenState extends State<EditPostScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
 
+  final ImagePicker _imagePicker = ImagePicker();
+  final PostImageService _postImageService = PostImageService();
+  final List<XFile> _newImages = [];
+  final List<PostImage> _existingImages = [];
+  final List<PostImage> _imagesToDelete = [];
+
   Post? _post;
+
+  bool _isSaving = false;
   bool _isLoadingPost = true;
+
   String? _loadError;
+
+  static const int _maximumImages = 5;
 
   @override
   void initState() {
@@ -36,6 +52,11 @@ class _EditPostScreenState extends State<EditPostScreen> {
   }
 
   Future<void> _loadPost() async {
+    setState(() {
+      _isLoadingPost = true;
+      _loadError = null;
+    });
+
     try {
       final post = await _postService.getPostById(widget.id);
 
@@ -47,6 +68,13 @@ class _EditPostScreenState extends State<EditPostScreen> {
         _post = post;
         _titleController.text = post.title;
         _contentController.text = post.content;
+
+        _existingImages
+          ..clear()
+          ..addAll(post.images);
+
+        _imagesToDelete.clear();
+        _newImages.clear();
       });
     } catch (error, stackTrace) {
       debugPrint('Load post for editing error: $error');
@@ -68,72 +96,391 @@ class _EditPostScreenState extends State<EditPostScreen> {
     }
   }
 
+  Future<void> _pickNewImages() async {
+    final currentImageCount = _existingImages.length + _newImages.length;
+
+    final remainingSlots = _maximumImages - currentImageCount;
+
+    if (remainingSlots <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('You can only add up to 5 images.')),
+      );
+
+      return;
+    }
+
+    try {
+      final images = await _imagePicker.pickMultiImage(
+        imageQuality: 85,
+        limit: remainingSlots,
+      );
+
+      if (!mounted || images.isEmpty) {
+        return;
+      }
+
+      setState(() {
+        _newImages.addAll(images.take(remainingSlots));
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Pick new images error: $error');
+
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to select images.')));
+    }
+  }
+
+  void _removeExistingImage(PostImage image) {
+    setState(() {
+      _existingImages.removeWhere(
+        (existingImage) => existingImage.id == image.id,
+      );
+
+      final alreadyMarkedForDeletion = _imagesToDelete.any(
+        (deletedImage) => deletedImage.id == image.id,
+      );
+
+      if (!alreadyMarkedForDeletion) {
+        _imagesToDelete.add(image);
+      }
+    });
+  }
+
+  void _restoreExistingImage(PostImage image) {
+    setState(() {
+      _imagesToDelete.removeWhere(
+        (deletedImage) => deletedImage.id == image.id,
+      );
+
+      final alreadyRestored = _existingImages.any(
+        (existingImage) => existingImage.id == image.id,
+      );
+
+      if (!alreadyRestored) {
+        _existingImages.add(image);
+      }
+    });
+  }
+
+  void _removeNewImage(int index) {
+    setState(() {
+      _newImages.removeAt(index);
+    });
+  }
+
   Future<void> _updatePost() async {
     FocusScope.of(context).unfocus();
 
     final isValid = _formKey.currentState?.validate() ?? false;
 
-    if (!isValid) {
+    if (!isValid || _isSaving) {
       return;
     }
+
+    setState(() {
+      _isSaving = true;
+    });
 
     final postProvider = context.read<PostProvider>();
 
-    final success = await postProvider.updatePost(
-      id: widget.id,
-      title: _titleController.text,
-      content: _contentController.text,
-    );
+    try {
+      final success = await postProvider.updatePost(
+        id: widget.id,
+        title: _titleController.text.trim(),
+        content: _contentController.text.trim(),
+      );
 
-    if (!mounted) {
-      return;
-    }
+      if (!success) {
+        if (!mounted) {
+          return;
+        }
 
-    if (!success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              postProvider.errorMessage ?? 'Unable to update post.',
+            ),
+          ),
+        );
+
+        return;
+      }
+
+      final imagesToDelete = List<PostImage>.from(_imagesToDelete);
+
+      for (final image in imagesToDelete) {
+        await _postImageService.deleteImage(
+          imageId: image.id,
+          storagePath: image.storagePath,
+        );
+
+        _imagesToDelete.removeWhere(
+          (deletedImage) => deletedImage.id == image.id,
+        );
+      }
+
+      if (_newImages.isNotEmpty) {
+        await _postImageService.uploadImages(
+          postId: widget.id,
+          images: _newImages,
+        );
+
+        _newImages.clear();
+      }
+
+      await postProvider.fetchPosts();
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Post updated successfully.')));
+
+      context.pop(true);
+    } catch (error, stackTrace) {
+      debugPrint('Update post error: $error');
+
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(postProvider.errorMessage ?? "Unable to update post."),
+          content: Text(
+            'The post was updated, but the remaining changes could not be completed.',
+          ),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildExistingImages() {
+    if (_existingImages.isEmpty) {
+      return SizedBox.shrink();
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Post updated successfully.')));
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: _existingImages.map((image) {
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.network(
+                image.imageUrl,
+                width: 120,
+                height: 120,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) {
+                    return child;
+                  }
 
-    context.pop(true);
-    return;
+                  return SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 120,
+                    height: 120,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.broken_image_outlined),
+                  );
+                },
+              ),
+            ),
+            Positioned(
+              top: -10,
+              right: -10,
+              child: IconButton.filled(
+                tooltip: 'Remove image',
+                onPressed: _isSaving
+                    ? null
+                    : () {
+                        _removeExistingImage(image);
+                      },
+                icon: Icon(Icons.close, size: 18),
+              ),
+            ),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildNewImages() {
+    if (_newImages.isEmpty) {
+      return SizedBox.shrink();
+    }
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: List.generate(_newImages.length, (index) {
+        final image = _newImages[index];
+
+        return FutureBuilder<Uint8List>(
+          future: image.readAsBytes(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return SizedBox(
+                width: 120,
+                height: 120,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (snapshot.hasError || !snapshot.hasData) {
+              return Container(
+                width: 120,
+                height: 120,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.broken_image_outlined),
+              );
+            }
+
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.memory(
+                    snapshot.data!,
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                Positioned(
+                  top: -10,
+                  right: -10,
+                  child: IconButton.filled(
+                    tooltip: 'Remove selected image',
+                    onPressed: _isSaving
+                        ? null
+                        : () {
+                            _removeNewImage(index);
+                          },
+                    icon: Icon(Icons.close, size: 18),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      }),
+    );
+  }
+
+  Widget _buildImagesMarkedForDeletion() {
+    if (_imagesToDelete.isEmpty) {
+      return SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: 20),
+        Text('Images to remove', style: Theme.of(context).textTheme.titleSmall),
+        SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _imagesToDelete.map((image) {
+            return ActionChip(
+              avatar: Icon(Icons.undo, size: 18),
+              label: Text('Restore image ${image.id}'),
+              onPressed: _isSaving
+                  ? null
+                  : () {
+                      _restoreExistingImage(image);
+                    },
+            );
+          }).toList(),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final postProvider = context.watch<PostProvider>();
-
     if (_isLoadingPost) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_loadError != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Edit post')),
-        body: Center(child: Text(_loadError!)),
+        appBar: AppBar(title: Text('Edit post')),
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_loadError!),
+                SizedBox(height: 16),
+                FilledButton(onPressed: _loadPost, child: Text('Try again')),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
     if (_post == null) {
-      return const Scaffold(body: Center(child: Text('Post not found.')));
+      return Scaffold(body: Center(child: Text('Post not found.')));
     }
+
+    final currentImageCount = _existingImages.length + _newImages.length;
+
+    final hasImages = _existingImages.isNotEmpty || _newImages.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios),
+          icon: Icon(Icons.arrow_back_ios_new),
           tooltip: 'Back to post details',
-          onPressed: () {
-            context.push('/post/${widget.id}');
-          },
+          onPressed: _isSaving
+              ? null
+              : () {
+                  context.pop();
+                },
         ),
-        title: Text('Update a post'),
+        title: Text('Edit post'),
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(24),
@@ -143,9 +490,11 @@ class _EditPostScreenState extends State<EditPostScreen> {
             child: Form(
               key: _formKey,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextFormField(
                     controller: _titleController,
+                    enabled: !_isSaving,
                     decoration: InputDecoration(
                       labelText: 'Title',
                       border: OutlineInputBorder(),
@@ -164,10 +513,10 @@ class _EditPostScreenState extends State<EditPostScreen> {
                       return null;
                     },
                   ),
-
                   SizedBox(height: 16),
                   TextFormField(
                     controller: _contentController,
+                    enabled: !_isSaving,
                     minLines: 6,
                     maxLines: 10,
                     decoration: InputDecoration(
@@ -189,14 +538,49 @@ class _EditPostScreenState extends State<EditPostScreen> {
                       return null;
                     },
                   ),
-
                   SizedBox(height: 24),
+                  Text(
+                    'Images',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '$currentImageCount/$_maximumImages images',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  if (hasImages) ...[
+                    SizedBox(height: 16),
+                    _buildExistingImages(),
+                    if (_existingImages.isNotEmpty && _newImages.isNotEmpty)
+                      SizedBox(height: 16),
+                    _buildNewImages(),
+                  ] else ...[
+                    SizedBox(height: 12),
+                    Text(
+                      'This post has no images.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                  _buildImagesMarkedForDeletion(),
+                  SizedBox(height: 20),
+                  OutlinedButton.icon(
+                    onPressed: _isSaving || currentImageCount >= _maximumImages
+                        ? null
+                        : _pickNewImages,
+                    icon: Icon(Icons.add_photo_alternate_outlined),
+                    label: Text(
+                      currentImageCount >= _maximumImages
+                          ? 'Maximum 5 images'
+                          : 'Add images',
+                    ),
+                  ),
+                  SizedBox(height: 32),
                   SizedBox(
                     width: double.infinity,
                     height: 45,
                     child: FilledButton(
-                      onPressed: postProvider.isLoading ? null : _updatePost,
-                      child: postProvider.isLoading
+                      onPressed: _isSaving ? null : _updatePost,
+                      child: _isSaving
                           ? SizedBox(
                               width: 20,
                               height: 20,

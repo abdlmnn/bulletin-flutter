@@ -55,7 +55,6 @@ class _PostListScreenState extends State<PostListScreen> {
               },
               child: Text('Login'),
             )
-            
           else
             Row(
               children: [

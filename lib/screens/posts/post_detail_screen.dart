@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:bulletin/models/post.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:bulletin/widgets/comments_section.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final int id;
@@ -123,19 +124,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     if (!success) {
       final errorMessage =
-          context.read<PostProvider>().errorMessage ?? 'Unable to delete post.';
+          postProvider.errorMessage ?? 'Unable to delete post.';
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(errorMessage)));
+
+      return;
     }
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Post deleted successfully.')));
+    ).showSnackBar(SnackBar(content: Text('Post deleted successfully.')));
 
     context.go('/');
-    return;
   }
 
   @override
@@ -155,26 +157,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ),
         title: Text('Post Details'),
         actions: [
-          if (isOwner)
+          if (isOwner) ...[
             IconButton(
               tooltip: 'Edit post',
               icon: Icon(Icons.edit),
               onPressed: () async {
-                final updated = await context.push<bool>(
-                  '/post/${_post!.id}/edit',
-                );
-
-                if (updated == true) {
-                  await _loadPost();
-                }
+                // edit logic
               },
             ),
 
-          IconButton(
-            tooltip: 'Delete post',
-            icon: Icon(Icons.delete_outline),
-            onPressed: _confirmDeletePost,
-          ),
+            IconButton(
+              tooltip: 'Delete post',
+              icon: Icon(Icons.delete_outline),
+              onPressed: _confirmDeletePost,
+            ),
+          ],
         ],
       ),
 
@@ -219,56 +216,75 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(24),
-
       child: Center(
         child: SizedBox(
           width: 700,
-
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-
             children: [
               Text(
                 post.title,
-
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
-
               SizedBox(height: 8),
-
               Text(
                 'Posted ${_formatDate(post.createdAt)}',
-
-                style: Theme.of(context).textTheme.headlineSmall,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
-
               SizedBox(height: 24),
-
-              Text(
-                post.content,
-
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
-
-              SizedBox(height: 32),
-
-              Divider(),
-
-              SizedBox(height: 16),
-
-              Text(
-                'Comments',
-
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
-
-              SizedBox(height: 12),
-
-              Text('No comments yet.'),
+              Text(post.content, style: Theme.of(context).textTheme.bodyLarge),
+              if (post.images.isNotEmpty) ...[
+                SizedBox(height: 24),
+                _buildPostImages(post),
+              ],
+              CommentsSection(postId: post.id),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPostImages(Post post) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: post.images.map((postImage) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.network(
+            postImage.imageUrl,
+            width: 220,
+            height: 180,
+            fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) {
+                return child;
+              }
+
+              return SizedBox(
+                width: 220,
+                height: 180,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            },
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                width: 220,
+                height: 180,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.broken_image_outlined, size: 40),
+              );
+            },
+          ),
+        );
+      }).toList(),
     );
   }
 }

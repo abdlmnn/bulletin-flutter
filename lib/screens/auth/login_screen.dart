@@ -38,6 +38,10 @@ class _LoginScreenState extends State<LoginScreen> {
       password: _passwordController.text,
     );
 
+    if (!mounted) {
+      return;
+    }
+
     if (success) {
       ScaffoldMessenger.of(
         context,
@@ -98,9 +102,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     validator: (value) {
                       final email = value?.trim() ?? '';
 
-                      if (email.isEmpty) 'Email is required';
+                      if (email.isEmpty) {
+                        return 'Email is required.';
+                      }
 
-                      if (!email.contains('@')) 'Enter a valid email address';
+                      if (!email.contains('@')) {
+                        return 'Enter a valid email.';
+                      }
 
                       return null;
                     },
@@ -128,11 +136,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty)
-                        "Password is required";
+                      if (value == null || value.isEmpty) {
+                        return "Password is required";
+                      }
 
-                      if (value!.length < 6)
-                        'Password must be at least 6 characters';
+                      if (value.length < 6) {
+                        return 'Password must be at least 6 characters';
+                      }
 
                       return null;
                     },

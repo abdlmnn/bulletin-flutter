@@ -1,4 +1,5 @@
 import 'package:bulletin/providers/auth_provider.dart';
+import 'package:bulletin/providers/comment_provider.dart';
 import 'package:bulletin/providers/post_provider.dart';
 import 'package:bulletin/router.dart';
 import 'package:bulletin/supabase.dart';
@@ -18,6 +19,7 @@ Future<void> main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => PostProvider()),
+        ChangeNotifierProvider(create: (_) => CommentProvider()),
       ],
       child: const BulletinApp(),
     ),

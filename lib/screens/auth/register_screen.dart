@@ -11,12 +11,14 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _hidePassword = true;
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -34,9 +36,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final authProvider = context.read<AuthProvider>();
 
     final success = await authProvider.register(
+      displayName: _nameController.text,
       email: _emailController.text,
       password: _passwordController.text,
     );
+
+    if (!mounted) {
+      return;
+    }
 
     if (success) {
       ScaffoldMessenger.of(
@@ -88,6 +95,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   SizedBox(height: 32),
                   TextFormField(
+                    controller: _nameController,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: [AutofillHints.name],
+                    decoration: InputDecoration(
+                      labelText: 'Name',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      final name = value?.trim() ?? '';
+
+                      if (name.isEmpty) {
+                        return 'Name is required.';
+                      }
+
+                      if (name.trim().length < 3) {
+                        return 'Display name must have at least 3 characters.';
+                      }
+
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: 16),
+                  TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: [AutofillHints.email],
@@ -98,9 +128,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     validator: (value) {
                       final email = value?.trim() ?? '';
 
-                      if (email.isEmpty) 'Email is required';
+                      if (email.isEmpty) {
+                        return 'Email is required.';
+                      }
 
-                      if (!email.contains('@')) 'Enter a valid email address';
+                      if (!email.contains('@')) {
+                        return 'Enter a valid email.';
+                      }
 
                       return null;
                     },
@@ -127,11 +161,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty)
-                        "Password is required";
+                      if (value == null || value.isEmpty) {
+                        return "Password is required";
+                      }
 
-                      if (value!.length < 6)
-                        'Password must be at least 6 characters';
+                      if (value.length < 6) {
+                        return 'Password must be at least 6 characters';
+                      }
 
                       return null;
                     },

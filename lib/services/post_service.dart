@@ -39,7 +39,10 @@ class PostService {
   Future<Post> getPostById(int id) async {
     final response = await _supabase
         .from('posts')
-        .select()
+        .select('''
+                  *,
+                  post_images (*)
+                ''')
         .eq('id', id)
         .single();
 
@@ -49,13 +52,16 @@ class PostService {
   Future<List<Post>> getPosts() async {
     final response = await _supabase
         .from('posts')
-        .select()
+        .select('''
+                *,
+                post_images (*)
+              ''')
         .order('created_at', ascending: false);
 
     return response.map<Post>((json) => Post.fromJson(json)).toList();
   }
 
-  Future<void> createPost({
+  Future<int> createPost({
     required String title,
     required String content,
   }) async {
@@ -65,10 +71,16 @@ class PostService {
       throw AuthApiException('You must logged in to create a post.');
     }
 
-    await _supabase.from('posts').insert({
-      'user_id': user.id,
-      'title': title.trim(),
-      'content': content.trim(),
-    });
+    final response = await _supabase
+        .from('posts')
+        .insert({
+          'user_id': user.id,
+          'title': title.trim(),
+          'content': content.trim(),
+        })
+        .select('id')
+        .single();
+
+    return (response['id'] as num).toInt();
   }
 }

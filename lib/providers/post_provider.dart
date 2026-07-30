@@ -60,7 +60,7 @@ class PostProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> createPost({
+  Future<int?> createPost({
     required String title,
     required String content,
   }) async {
@@ -68,17 +68,17 @@ class PostProvider extends ChangeNotifier {
     _errorMessage = null;
 
     try {
-      await _postService.createPost(title: title, content: content);
+      final id = await _postService.createPost(title: title, content: content);
 
-      _posts = await _postService.getPosts();
+      // _posts = await _postService.getPosts();
 
-      return true;
+      return id;
     } catch (error, stackTrace) {
       debugPrint('Create post error: $error');
       debugPrintStack(stackTrace: stackTrace);
 
       _errorMessage = error.toString();
-      return false;
+      return null;
     } finally {
       _setLoading(false);
     }

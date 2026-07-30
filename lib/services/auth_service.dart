@@ -6,10 +6,15 @@ class AuthService {
   User? get currentUser => _supabase.auth.currentUser;
 
   Future<AuthResponse> register({
+    required String displayName,
     required String email,
     required String password,
   }) async {
-    return await _supabase.auth.signUp(email: email, password: password);
+    return await _supabase.auth.signUp(
+      email: email,
+      password: password,
+      data: {'display_name': displayName},
+    );
   }
 
   Future<AuthResponse> login({
