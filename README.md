@@ -100,5 +100,5 @@ refresh.
 
 ## Submission
 
-- Live URL: Add after deployment
+- Live URL: https://bulletin-flutter.pages.dev
 - GitHub repository: https://github.com/abdlmnn/bulletin-flutter
