@@ -162,7 +162,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               tooltip: 'Edit post',
               icon: Icon(Icons.edit),
               onPressed: () async {
-                // edit logic
+                final wasUpdated = await context.push<bool>(
+                  '/post/${widget.id}/edit',
+                );
+
+                if (wasUpdated == true) {
+                  _loadPost();
+                }
               },
             ),
 

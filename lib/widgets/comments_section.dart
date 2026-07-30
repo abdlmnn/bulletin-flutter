@@ -54,21 +54,159 @@ class _CommentsSectionState extends State<CommentsSection> {
       return;
     }
 
-    if (success) {
-      _commentController.clear();
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Comment added successfully.')));
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            commentProvider.errorMessage ?? 'Unable to add comment.',
+          ),
+        ),
+      );
 
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(commentProvider.errorMessage ?? 'Unable to add comment.'),
-      ),
+    _commentController.clear();
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Comment added successfully.')));
+  }
+
+  Future<void> _editComment(Comment comment) async {
+    String editedContent = comment.content;
+    final editController = TextEditingController(text: editedContent);
+
+    final updatedContent = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Edit comment'),
+          content: TextField(
+            controller: editController,
+            minLines: 2,
+            maxLines: 5,
+            maxLength: 1000,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Update your comment...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final content = editController.text.trim();
+
+                if (content.isEmpty) {
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop(content);
+              },
+              child: Text('Save'),
+            ),
+          ],
+        );
+      },
     );
+
+    editController.dispose();
+
+    if (updatedContent == null || !mounted) {
+      return;
+    }
+
+    if (updatedContent == comment.content.trim()) {
+      return;
+    }
+
+    final commentProvider = context.read<CommentProvider>();
+
+    final success = await commentProvider.updateComment(
+      commentId: comment.id,
+      content: updatedContent,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            commentProvider.errorMessage ?? 'Unable to update comment.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Comment updated successfully.')));
+  }
+
+  Future<void> _confirmDeleteComment(Comment comment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Delete comment?'),
+          content: Text('This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final commentProvider = context.read<CommentProvider>();
+
+    final success = await commentProvider.deleteComment(commentId: comment.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            commentProvider.errorMessage ?? 'Unable to delete comment.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Comment deleted successfully.')));
   }
 
   Future<void> _refreshComments() async {
@@ -89,21 +227,11 @@ class _CommentsSectionState extends State<CommentsSection> {
 
         Text('Comments', style: Theme.of(context).textTheme.titleLarge),
 
-        if (user != null) SizedBox(height: 16),
-        if (user != null) _buildCommentForm(commentProvider),
+        if (user != null) ...[
+          SizedBox(height: 16),
+          _buildCommentForm(commentProvider),
+        ],
 
-        // else
-        //   Container(
-        //     width: double.infinity,
-        //     padding: EdgeInsets.all(16),
-        //     decoration: BoxDecoration(
-        //       border: Border.all(
-        //         color: Theme.of(context).colorScheme.outlineVariant,
-        //       ),
-        //       borderRadius: BorderRadius.circular(10),
-        //     ),
-        //     child: Text('Log in to add a comment.'),
-        //   ),
         SizedBox(height: 24),
 
         _buildComments(commentProvider),
@@ -206,19 +334,19 @@ class _CommentsSectionState extends State<CommentsSection> {
       itemBuilder: (context, index) {
         final comment = commentProvider.comments[index];
 
-        return _buildCommentCard(comment);
+        return _buildCommentCard(comment, commentProvider);
       },
     );
   }
 
-  Widget _buildCommentCard(Comment comment) {
+  Widget _buildCommentCard(Comment comment, CommentProvider commentProvider) {
     final authProvider = context.read<AuthProvider>();
     final currentUserId = authProvider.currentUser?.id;
 
     final isOwner = currentUserId == comment.userId;
 
-    final wasEdited =
-        comment.updatedAt.difference(comment.createdAt).inSeconds > 1;
+    // final wasEdited =
+    //     comment.updatedAt.difference(comment.createdAt).inSeconds > 1;
 
     return Card(
       child: Padding(
@@ -243,6 +371,44 @@ class _CommentsSectionState extends State<CommentsSection> {
                   _formatDate(comment.createdAt),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+
+                if (isOwner)
+                  PopupMenuButton<String>(
+                    enabled: !commentProvider.isSubmitting,
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _editComment(comment);
+                      }
+
+                      if (value == 'delete') {
+                        _confirmDeleteComment(comment);
+                      }
+                    },
+                    itemBuilder: (context) {
+                      return [
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_outlined),
+                              SizedBox(width: 8),
+                              Text('Edit'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_outline),
+                              SizedBox(width: 8),
+                              Text('Delete'),
+                            ],
+                          ),
+                        ),
+                      ];
+                    },
+                  ),
               ],
             ),
 
@@ -250,10 +416,10 @@ class _CommentsSectionState extends State<CommentsSection> {
 
             Text(comment.content),
 
-            if (wasEdited) ...[
-              SizedBox(height: 8),
-              Text('Edited', style: Theme.of(context).textTheme.bodySmall),
-            ],
+            // if (wasEdited) ...[
+            //   SizedBox(height: 8),
+            //   Text('Edited', style: Theme.of(context).textTheme.bodySmall),
+            // ],
           ],
         ),
       ),
