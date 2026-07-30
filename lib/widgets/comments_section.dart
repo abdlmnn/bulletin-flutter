@@ -75,15 +75,17 @@ class _CommentsSectionState extends State<CommentsSection> {
 
   Future<void> _editComment(Comment comment) async {
     String editedContent = comment.content;
-    final editController = TextEditingController(text: editedContent);
 
     final updatedContent = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: Text('Edit comment'),
-          content: TextField(
-            controller: editController,
+          content: TextFormField(
+            initialValue: comment.content,
+            onChanged: (value) {
+              editedContent = value;
+            },
             minLines: 2,
             maxLines: 5,
             maxLength: 1000,
@@ -102,7 +104,7 @@ class _CommentsSectionState extends State<CommentsSection> {
             ),
             FilledButton(
               onPressed: () {
-                final content = editController.text.trim();
+                final content = editedContent.trim();
 
                 if (content.isEmpty) {
                   return;
@@ -116,8 +118,6 @@ class _CommentsSectionState extends State<CommentsSection> {
         );
       },
     );
-
-    editController.dispose();
 
     if (updatedContent == null || !mounted) {
       return;
@@ -433,9 +433,10 @@ class _CommentsSectionState extends State<CommentsSection> {
     final month = localDate.month.toString().padLeft(2, '0');
     final day = localDate.day.toString().padLeft(2, '0');
 
-    final hour = localDate.hour.toString().padLeft(2, '0');
+    final period = localDate.hour >= 12 ? 'PM' : 'AM';
+    final hour = localDate.hour % 12 == 0 ? 12 : localDate.hour % 12;
     final minute = localDate.minute.toString().padLeft(2, '0');
 
-    return '$year-$month-$day $hour:$minute';
+    return '$year-$month-$day $hour:$minute $period';
   }
 }

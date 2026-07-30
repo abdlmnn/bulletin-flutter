@@ -245,7 +245,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text('Post updated successfully.')));
 
-      context.pop(true);
+      context.go('/post/${widget.id}');
     } catch (error, stackTrace) {
       debugPrint('Update post error: $error');
 
@@ -477,7 +477,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
           onPressed: _isSaving
               ? null
               : () {
-                  context.pop();
+                  context.go('/post/${widget.id}');
                 },
         ),
         title: Text('Edit post'),

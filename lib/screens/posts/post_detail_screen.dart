@@ -76,10 +76,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   String _formatDate(DateTime date) {
     final localDate = date.toLocal();
+    final period = localDate.hour >= 12 ? 'PM' : 'AM';
+    final hour = localDate.hour % 12 == 0 ? 12 : localDate.hour % 12;
 
     return '${localDate.month}/${localDate.day}/${localDate.year} '
-        '${localDate.hour.toString().padLeft(2, '0')}:'
-        '${localDate.minute.toString().padLeft(2, '0')}';
+        '$hour:${localDate.minute.toString().padLeft(2, '0')} $period';
   }
 
   Future<void> _confirmDeletePost() async {
@@ -161,14 +162,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             IconButton(
               tooltip: 'Edit post',
               icon: Icon(Icons.edit),
-              onPressed: () async {
-                final wasUpdated = await context.push<bool>(
-                  '/post/${widget.id}/edit',
-                );
-
-                if (wasUpdated == true) {
-                  _loadPost();
-                }
+              onPressed: () {
+                context.go('/post/${widget.id}/edit');
               },
             ),
 
