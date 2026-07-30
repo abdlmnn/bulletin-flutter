@@ -1,7 +1,10 @@
 import 'package:bulletin/models/comment.dart';
+import 'package:bulletin/models/comment_image.dart';
 import 'package:bulletin/providers/auth_provider.dart';
 import 'package:bulletin/providers/comment_provider.dart';
+import 'package:bulletin/services/comment_image_service.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 class CommentsSection extends StatefulWidget {
@@ -16,6 +19,12 @@ class CommentsSection extends StatefulWidget {
 class _CommentsSectionState extends State<CommentsSection> {
   final _formKey = GlobalKey<FormState>();
   final _commentController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  final CommentImageService _commentImageService = CommentImageService();
+  final List<XFile> _selectedImages = [];
+  int? _editingImagesCommentId;
+
+  final int maximumImages = 5;
 
   @override
   void initState() {
@@ -45,7 +54,7 @@ class _CommentsSectionState extends State<CommentsSection> {
 
     final commentProvider = context.read<CommentProvider>();
 
-    final success = await commentProvider.createComment(
+    final commentId = await commentProvider.createComment(
       postId: widget.postId,
       content: _commentController.text,
     );
@@ -54,7 +63,7 @@ class _CommentsSectionState extends State<CommentsSection> {
       return;
     }
 
-    if (!success) {
+    if (commentId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -66,11 +75,137 @@ class _CommentsSectionState extends State<CommentsSection> {
       return;
     }
 
+    if (_selectedImages.isNotEmpty) {
+      try {
+        await _commentImageService.uploadImages(
+          commentId: commentId,
+          images: _selectedImages,
+        );
+
+        await commentProvider.fetchComments(postId: widget.postId);
+      } catch (error, stackTrace) {
+        debugPrint('Upload comment images error: $error');
+        debugPrintStack(stackTrace: stackTrace);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'The comment was posted, but an image failed to upload.',
+              ),
+            ),
+          );
+        }
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     _commentController.clear();
+    setState(() {
+      _selectedImages.clear();
+    });
 
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('Comment added successfully.')));
+  }
+
+  Future<List<XFile>> _pickImages(int currentImageCount) async {
+    final remainingSlots = maximumImages - currentImageCount;
+
+    if (remainingSlots <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('You can only add up to 5 images.')),
+      );
+
+      return [];
+    }
+
+    try {
+      return await _imagePicker.pickMultiImage(
+        imageQuality: 85,
+        limit: remainingSlots,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Pick comment images error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Unable to select images.')));
+      }
+
+      return [];
+    }
+  }
+
+  Future<void> _pickNewCommentImages() async {
+    final images = await _pickImages(_selectedImages.length);
+
+    if (!mounted || images.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      final remainingSlots = maximumImages - _selectedImages.length;
+      _selectedImages.addAll(images.take(remainingSlots));
+    });
+  }
+
+  Future<void> _addImagesToComment(Comment comment) async {
+    final images = await _pickImages(comment.images.length);
+
+    if (!mounted || images.isEmpty) {
+      return;
+    }
+
+    final commentProvider = context.read<CommentProvider>();
+
+    try {
+      final remainingSlots = maximumImages - comment.images.length;
+
+      await _commentImageService.uploadImages(
+        commentId: comment.id,
+        images: images.take(remainingSlots).toList(),
+      );
+
+      await commentProvider.fetchComments(postId: widget.postId);
+    } catch (error, stackTrace) {
+      debugPrint('Add comment images error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to add images to this comment.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteCommentImage(CommentImage image) async {
+    final commentProvider = context.read<CommentProvider>();
+
+    try {
+      await _commentImageService.deleteImage(
+        imageId: image.id,
+        storagePath: image.storagePath,
+      );
+
+      await commentProvider.fetchComments(postId: widget.postId);
+    } catch (error, stackTrace) {
+      debugPrint('Delete comment image error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to delete this image.')),
+        );
+      }
+    }
   }
 
   Future<void> _editComment(Comment comment) async {
@@ -268,21 +403,68 @@ class _CommentsSectionState extends State<CommentsSection> {
 
           SizedBox(height: 8),
 
-          FilledButton.icon(
-            onPressed: commentProvider.isSubmitting ? null : _createComment,
-            icon: commentProvider.isSubmitting
-                ? SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(Icons.send),
-            label: Text(
-              commentProvider.isSubmitting ? 'Posting...' : 'Post comment',
-            ),
+          Row(
+            children: [
+              IconButton.outlined(
+                tooltip: 'Add images (maximum 5)',
+                onPressed: _selectedImages.length >= maximumImages
+                    ? null
+                    : _pickNewCommentImages,
+                icon: Icon(Icons.add_photo_alternate_outlined),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Maximum 5 images',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              IconButton.filled(
+                tooltip: 'Post comment',
+                onPressed: commentProvider.isSubmitting
+                    ? null
+                    : _createComment,
+                icon: commentProvider.isSubmitting
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(Icons.send),
+              ),
+            ],
           ),
+
+          if (_selectedImages.isNotEmpty) ...[
+            SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _buildSelectedImages(),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildSelectedImages() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: List.generate(_selectedImages.length, (index) {
+        return InputChip(
+          avatar: Icon(Icons.image_outlined),
+          label: Text(
+            _selectedImages[index].name,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onDeleted: () {
+            setState(() {
+              _selectedImages.removeAt(index);
+            });
+          },
+        );
+      }),
     );
   }
 
@@ -344,6 +526,7 @@ class _CommentsSectionState extends State<CommentsSection> {
     final currentUserId = authProvider.currentUser?.id;
 
     final isOwner = currentUserId == comment.userId;
+    final isEditingImages = _editingImagesCommentId == comment.id;
 
     // final wasEdited =
     //     comment.updatedAt.difference(comment.createdAt).inSeconds > 1;
@@ -356,20 +539,24 @@ class _CommentsSectionState extends State<CommentsSection> {
           children: [
             Row(
               children: [
-                CircleAvatar(child: Icon(Icons.person)),
-
-                SizedBox(width: 10),
-
                 Expanded(
-                  child: Text(
-                    isOwner ? 'You' : comment.displayName,
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        comment.email,
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        _formatDate(comment.createdAt),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-
-                Text(
-                  _formatDate(comment.createdAt),
-                  style: Theme.of(context).textTheme.bodySmall,
                 ),
 
                 if (isOwner)
@@ -378,6 +565,12 @@ class _CommentsSectionState extends State<CommentsSection> {
                     onSelected: (value) {
                       if (value == 'edit') {
                         _editComment(comment);
+                      }
+
+                      if (value == 'edit_images') {
+                        setState(() {
+                          _editingImagesCommentId = comment.id;
+                        });
                       }
 
                       if (value == 'delete') {
@@ -393,6 +586,16 @@ class _CommentsSectionState extends State<CommentsSection> {
                               Icon(Icons.edit_outlined),
                               SizedBox(width: 8),
                               Text('Edit'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'edit_images',
+                          child: Row(
+                            children: [
+                              Icon(Icons.photo_library_outlined),
+                              SizedBox(width: 8),
+                              Text('Edit images'),
                             ],
                           ),
                         ),
@@ -416,6 +619,39 @@ class _CommentsSectionState extends State<CommentsSection> {
 
             Text(comment.content),
 
+            if (comment.images.isNotEmpty) ...[
+              SizedBox(height: 12),
+              _buildCommentImages(comment, isOwner && isEditingImages),
+            ],
+
+            if (isOwner && isEditingImages) ...[
+              SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  if (comment.images.length < maximumImages)
+                    IconButton(
+                      tooltip: 'Add images (maximum 5)',
+                      onPressed: commentProvider.isSubmitting
+                          ? null
+                          : () {
+                              _addImagesToComment(comment);
+                            },
+                      icon: Icon(Icons.add_photo_alternate_outlined),
+                    ),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _editingImagesCommentId = null;
+                      });
+                    },
+                    icon: Icon(Icons.check),
+                    label: Text('Done editing'),
+                  ),
+                ],
+              ),
+            ],
+
             // if (wasEdited) ...[
             //   SizedBox(height: 8),
             //   Text('Edited', style: Theme.of(context).textTheme.bodySmall),
@@ -423,6 +659,48 @@ class _CommentsSectionState extends State<CommentsSection> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCommentImages(Comment comment, bool showRemoveButton) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: comment.images.map((image) {
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                image.imageUrl,
+                width: 110,
+                height: 100,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 110,
+                    height: 100,
+                    alignment: Alignment.center,
+                    child: Icon(Icons.broken_image_outlined),
+                  );
+                },
+              ),
+            ),
+            if (showRemoveButton)
+              Positioned(
+                top: -10,
+                right: -10,
+                child: IconButton.filled(
+                  onPressed: () {
+                    _deleteCommentImage(image);
+                  },
+                  icon: Icon(Icons.close, size: 16),
+                ),
+              ),
+          ],
+        );
+      }).toList(),
     );
   }
 

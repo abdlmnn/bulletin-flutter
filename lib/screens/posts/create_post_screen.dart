@@ -4,7 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 
-import 'dart:typed_data';
 import 'package:bulletin/services/post_image_service.dart';
 
 class CreatePostScreen extends StatefulWidget {
@@ -54,7 +53,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
 
       setState(() {
-        _selectedImages.addAll(images);
+        _selectedImages.addAll(images.take(remainingSlots));
       });
     } catch (error, stackTrace) {
       debugPrint('Pick images error: $error');
@@ -163,58 +162,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
 
     return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+      spacing: 8,
+      runSpacing: 8,
       children: List.generate(_selectedImages.length, (index) {
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: FutureBuilder<Uint8List>(
-                future: _selectedImages[index].readAsBytes(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const SizedBox(
-                      width: 120,
-                      height: 120,
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-
-                  if (snapshot.hasError || !snapshot.hasData) {
-                    return Container(
-                      width: 120,
-                      height: 120,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        border: Border.all(),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.broken_image_outlined),
-                    );
-                  }
-
-                  return Image.memory(
-                    snapshot.data!,
-                    width: 120,
-                    height: 120,
-                    fit: BoxFit.cover,
-                  );
-                },
-              ),
-            ),
-
-            Positioned(
-              top: -10,
-              right: -10,
-              child: IconButton.filled(
-                tooltip: 'Remove image',
-                onPressed: () => _removeSelectedImage(index),
-                icon: Icon(Icons.close, size: 18),
-              ),
-            ),
-          ],
+        return InputChip(
+          avatar: Icon(Icons.image_outlined),
+          label: Text(
+            _selectedImages[index].name,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onDeleted: () {
+            _removeSelectedImage(index);
+          },
         );
       }),
     );
@@ -225,14 +184,25 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final postProvider = context.watch<PostProvider>();
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios),
-          tooltip: 'Back to posts',
-          onPressed: () {
-            context.go('/');
-          },
+        leadingWidth: 64,
+        titleSpacing: 24,
+        leading: Padding(
+          padding: EdgeInsets.only(left: 8),
+          child: IconButton(
+            icon: Icon(Icons.arrow_back_ios),
+            tooltip: 'Back to posts',
+            onPressed: () {
+              context.go('/');
+            },
+          ),
         ),
-        title: Text('Create a post'),
+        title: Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Text('Create Post'),
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(24),
@@ -292,12 +262,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   SizedBox(height: 16),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: _selectedImages.length >= 5
-                          ? null
-                          : _pickImages,
-                      icon: Icon(Icons.add_photo_alternate_outlined),
-                      label: Text('Add images ${_selectedImages.length}/5'),
+                    child: Row(
+                      children: [
+                        IconButton.outlined(
+                          tooltip: 'Add images (maximum 5)',
+                          onPressed: _selectedImages.length >= 5
+                              ? null
+                              : _pickImages,
+                          icon: Icon(Icons.add_photo_alternate_outlined),
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Maximum 5 images',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ),
 

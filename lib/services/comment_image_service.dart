@@ -1,50 +1,32 @@
 import 'dart:typed_data';
+
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class PostImageService {
+class CommentImageService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  static const String _bucketName = 'post-images';
-
-  Future<void> deleteImage({
-    required int imageId,
-    required String storagePath,
-  }) async {
-    final user = _supabase.auth.currentUser;
-
-    if (user == null) {
-      throw const AuthException('You must be logged in to delete an image.');
-    }
-
-    await _supabase.storage.from(_bucketName).remove([storagePath]);
-
-    await _supabase
-        .from('post_images')
-        .delete()
-        .eq('id', imageId)
-        .eq('user_id', user.id);
-  }
+  static String bucketName = 'comment-images';
 
   Future<void> uploadImages({
-    required int postId,
+    required int commentId,
     required List<XFile> images,
   }) async {
     final user = _supabase.auth.currentUser;
 
     if (user == null) {
-      throw const AuthException('You must be logged in to upload images.');
+      throw AuthException('You must be logged in to upload images.');
     }
 
     final existingImages = await _supabase
-        .from('post_images')
+        .from('comment_images')
         .select('id')
-        .eq('post_id', postId);
+        .eq('comment_id', commentId);
 
     final remainingSlots = 5 - existingImages.length;
 
     if (remainingSlots <= 0) {
-      throw StateError('This post already has 5 images.');
+      throw StateError('This comment already has 5 images.');
     }
 
     for (final image in images.take(remainingSlots)) {
@@ -53,28 +35,45 @@ class PostImageService {
       final uniqueName = '${DateTime.now().microsecondsSinceEpoch}.$extension';
       final storagePath = '${user.id}/$uniqueName';
 
-      await _supabase.storage
-          .from(_bucketName)
-          .uploadBinary(
-            storagePath,
-            bytes,
-            fileOptions: FileOptions(
-              contentType: _getContentType(extension),
-              upsert: false,
-            ),
-          );
+      await _supabase.storage.from(bucketName).uploadBinary(
+        storagePath,
+        bytes,
+        fileOptions: FileOptions(
+          contentType: _getContentType(extension),
+          upsert: false,
+        ),
+      );
 
       final imageUrl = _supabase.storage
-          .from(_bucketName)
+          .from(bucketName)
           .getPublicUrl(storagePath);
 
-      await _supabase.from('post_images').insert({
-        'post_id': postId,
+      await _supabase.from('comment_images').insert({
+        'comment_id': commentId,
         'user_id': user.id,
         'storage_path': storagePath,
         'image_url': imageUrl,
       });
     }
+  }
+
+  Future<void> deleteImage({
+    required int imageId,
+    required String storagePath,
+  }) async {
+    final user = _supabase.auth.currentUser;
+
+    if (user == null) {
+      throw AuthException('You must be logged in to delete an image.');
+    }
+
+    await _supabase.storage.from(bucketName).remove([storagePath]);
+
+    await _supabase
+        .from('comment_images')
+        .delete()
+        .eq('id', imageId)
+        .eq('user_id', user.id);
   }
 
   String _getFileExtension(String fileName) {
@@ -85,8 +84,7 @@ class PostImageService {
     }
 
     final extension = parts.last.toLowerCase();
-
-    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    final allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
 
     if (!allowedExtensions.contains(extension)) {
       return 'jpg';
@@ -101,8 +99,6 @@ class PostImageService {
         return 'image/png';
       case 'webp':
         return 'image/webp';
-      case 'jpg':
-      case 'jpeg':
       default:
         return 'image/jpeg';
     }

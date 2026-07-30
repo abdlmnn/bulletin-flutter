@@ -11,32 +11,24 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _hidePassword = true;
 
   @override
   void dispose() {
-    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _register() async {
-    FocusScope.of(context).unfocus();
-
-    final isValid = _formKey.currentState?.validate() ?? false;
-
-    if (!isValid) {
+    if (!_formKey.currentState!.validate()) {
       return;
     }
 
     final authProvider = context.read<AuthProvider>();
 
     final success = await authProvider.register(
-      displayName: _nameController.text,
       email: _emailController.text,
       password: _passwordController.text,
     );
@@ -66,12 +58,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final authProvider = context.watch<AuthProvider>();
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          onPressed: () {
-            context.go('/');
-          },
-          icon: Icon(Icons.arrow_back),
-          tooltip: 'Back to posts',
+        leadingWidth: 64,
+        titleSpacing: 24,
+        leading: Padding(
+          padding: EdgeInsets.only(left: 8),
+          child: IconButton(
+            onPressed: () {
+              context.go('/');
+            },
+            icon: Icon(Icons.arrow_back),
+            tooltip: 'Back to posts',
+          ),
         ),
         title: Text('Create an account'),
       ),
@@ -95,32 +92,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   SizedBox(height: 32),
                   TextFormField(
-                    controller: _nameController,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: [AutofillHints.name],
-                    decoration: InputDecoration(
-                      labelText: 'Name',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) {
-                      final name = value?.trim() ?? '';
-
-                      if (name.isEmpty) {
-                        return 'Name is required.';
-                      }
-
-                      if (name.trim().length < 3) {
-                        return 'Display name must have at least 3 characters.';
-                      }
-
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 16),
-                  TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    autofillHints: [AutofillHints.email],
                     decoration: InputDecoration(
                       labelText: 'Email',
                       border: OutlineInputBorder(),
@@ -142,23 +115,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   SizedBox(height: 16),
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: _hidePassword,
-                    autofillHints: [AutofillHints.newPassword],
+                    obscureText: true,
                     decoration: InputDecoration(
                       labelText: 'Password',
                       border: OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        onPressed: () => {
-                          setState(() {
-                            _hidePassword = !_hidePassword;
-                          }),
-                        },
-                        icon: Icon(
-                          _hidePassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                        ),
-                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -170,9 +130,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       }
 
                       return null;
-                    },
-                    onFieldSubmitted: (_) {
-                      if (!authProvider.isLoading) _register();
                     },
                   ),
                   SizedBox(height: 24),

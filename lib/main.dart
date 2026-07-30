@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseConfig.initialize();
   SupabaseConfig.validate();
   await Supabase.initialize(
     url: SupabaseConfig.url,
@@ -35,6 +36,9 @@ class BulletinApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: appRouter,
       theme: ThemeData(
+        appBarTheme: AppBarTheme(
+          actionsPadding: EdgeInsets.only(right: 8),
+        ),
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.teal,
           brightness: Brightness.dark,

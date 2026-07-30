@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:bulletin/models/post.dart';
 
-import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:bulletin/models/post_image.dart';
 
@@ -277,60 +276,20 @@ class _EditPostScreenState extends State<EditPostScreen> {
     }
 
     return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+      spacing: 8,
+      runSpacing: 8,
       children: _existingImages.map((image) {
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                image.imageUrl,
-                width: 120,
-                height: 120,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) {
-                    return child;
-                  }
-
-                  return SizedBox(
-                    width: 120,
-                    height: 120,
-                    child: Center(child: CircularProgressIndicator()),
-                  );
+        return InputChip(
+          avatar: Icon(Icons.image_outlined),
+          label: Text(
+            image.storagePath.split('/').last,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onDeleted: _isSaving
+              ? null
+              : () {
+                  _removeExistingImage(image);
                 },
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: 120,
-                    height: 120,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.broken_image_outlined),
-                  );
-                },
-              ),
-            ),
-            Positioned(
-              top: -10,
-              right: -10,
-              child: IconButton.filled(
-                tooltip: 'Remove image',
-                onPressed: _isSaving
-                    ? null
-                    : () {
-                        _removeExistingImage(image);
-                      },
-                icon: Icon(Icons.close, size: 18),
-              ),
-            ),
-          ],
         );
       }).toList(),
     );
@@ -342,65 +301,19 @@ class _EditPostScreenState extends State<EditPostScreen> {
     }
 
     return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+      spacing: 8,
+      runSpacing: 8,
       children: List.generate(_newImages.length, (index) {
         final image = _newImages[index];
 
-        return FutureBuilder<Uint8List>(
-          future: image.readAsBytes(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return SizedBox(
-                width: 120,
-                height: 120,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-
-            if (snapshot.hasError || !snapshot.hasData) {
-              return Container(
-                width: 120,
-                height: 120,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.broken_image_outlined),
-              );
-            }
-
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.memory(
-                    snapshot.data!,
-                    width: 120,
-                    height: 120,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Positioned(
-                  top: -10,
-                  right: -10,
-                  child: IconButton.filled(
-                    tooltip: 'Remove selected image',
-                    onPressed: _isSaving
-                        ? null
-                        : () {
-                            _removeNewImage(index);
-                          },
-                    icon: Icon(Icons.close, size: 18),
-                  ),
-                ),
-              ],
-            );
-          },
+        return InputChip(
+          avatar: Icon(Icons.image_outlined),
+          label: Text(image.name, overflow: TextOverflow.ellipsis),
+          onDeleted: _isSaving
+              ? null
+              : () {
+                  _removeNewImage(index);
+                },
         );
       }),
     );
@@ -423,7 +336,10 @@ class _EditPostScreenState extends State<EditPostScreen> {
           children: _imagesToDelete.map((image) {
             return ActionChip(
               avatar: Icon(Icons.undo, size: 18),
-              label: Text('Restore image ${image.id}'),
+              label: Text(
+                'Restore ${image.storagePath.split('/').last}',
+                overflow: TextOverflow.ellipsis,
+              ),
               onPressed: _isSaving
                   ? null
                   : () {
@@ -471,16 +387,27 @@ class _EditPostScreenState extends State<EditPostScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new),
-          tooltip: 'Back to post details',
-          onPressed: _isSaving
-              ? null
-              : () {
-                  context.go('/post/${widget.id}');
-                },
+        leadingWidth: 64,
+        titleSpacing: 24,
+        leading: Padding(
+          padding: EdgeInsets.only(left: 8),
+          child: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new),
+            tooltip: 'Back to post details',
+            onPressed: _isSaving
+                ? null
+                : () {
+                    context.go('/post/${widget.id}');
+                  },
+          ),
         ),
-        title: Text('Edit post'),
+        title: Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Text('Edit Post'),
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(24),
@@ -538,42 +465,36 @@ class _EditPostScreenState extends State<EditPostScreen> {
                       return null;
                     },
                   ),
-                  SizedBox(height: 24),
-                  Text(
-                    'Images',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    '$currentImageCount/$_maximumImages images',
-                    style: Theme.of(context).textTheme.bodySmall,
+                  SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      children: [
+                        IconButton.outlined(
+                          tooltip: 'Add images (maximum 5)',
+                          onPressed:
+                              _isSaving ||
+                                  currentImageCount >= _maximumImages
+                              ? null
+                              : _pickNewImages,
+                          icon: Icon(Icons.add_photo_alternate_outlined),
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Maximum 5 images',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
                   ),
                   if (hasImages) ...[
-                    SizedBox(height: 16),
+                    SizedBox(height: 20),
                     _buildExistingImages(),
                     if (_existingImages.isNotEmpty && _newImages.isNotEmpty)
-                      SizedBox(height: 16),
+                      SizedBox(height: 12),
                     _buildNewImages(),
-                  ] else ...[
-                    SizedBox(height: 12),
-                    Text(
-                      'This post has no images.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
                   ],
                   _buildImagesMarkedForDeletion(),
-                  SizedBox(height: 20),
-                  OutlinedButton.icon(
-                    onPressed: _isSaving || currentImageCount >= _maximumImages
-                        ? null
-                        : _pickNewImages,
-                    icon: Icon(Icons.add_photo_alternate_outlined),
-                    label: Text(
-                      currentImageCount >= _maximumImages
-                          ? 'Maximum 5 images'
-                          : 'Add images',
-                    ),
-                  ),
                   SizedBox(height: 32),
                   SizedBox(
                     width: double.infinity,

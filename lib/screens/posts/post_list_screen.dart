@@ -1,5 +1,6 @@
 import 'package:bulletin/providers/auth_provider.dart';
 import 'package:bulletin/providers/post_provider.dart';
+import 'package:bulletin/widgets/post_card.dart';
 import "package:flutter/material.dart";
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -43,10 +44,9 @@ class _PostListScreenState extends State<PostListScreen> {
     final user = authProvider.currentUser;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          user == null ? 'Bulletin' : user.email ?? 'Bulletin',
-          style: TextStyle(fontSize: 18),
-        ),
+        titleSpacing: 24,
+        actionsPadding: EdgeInsets.only(right: 16),
+        title: Text('Bulletin'),
         actions: [
           if (user == null)
             TextButton(
@@ -55,32 +55,20 @@ class _PostListScreenState extends State<PostListScreen> {
               },
               child: Text('Login'),
             )
-          else
-            Row(
-              children: [
-                TextButton(
-                  onPressed: () => context.go('/post/create'),
-                  child: authProvider.isLoading
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text('Create a post'),
-                ),
-
-                TextButton(
-                  onPressed: authProvider.isLoading ? null : () => _logout(),
-                  child: authProvider.isLoading
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text('Logout'),
-                ),
-              ],
+          else ...[
+            IconButton(
+              tooltip: 'Create post',
+              onPressed: () {
+                context.go('/post/create');
+              },
+              icon: Icon(Icons.add),
             ),
+            IconButton(
+              tooltip: 'Logout',
+              onPressed: authProvider.isLoading ? null : _logout,
+              icon: Icon(Icons.logout),
+            ),
+          ],
         ],
       ),
       body: _buildBody(postProvider),
@@ -116,24 +104,40 @@ class _PostListScreenState extends State<PostListScreen> {
 
     return RefreshIndicator(
       onRefresh: postProvider.fetchPosts,
-      child: ListView.separated(
+      child: ListView.builder(
         padding: EdgeInsets.all(16),
-        itemCount: postProvider.posts.length,
-        separatorBuilder: (_, _) => SizedBox(height: 12),
-
+        itemCount:
+            postProvider.posts.length + (postProvider.hasMore ? 1 : 0),
         itemBuilder: (context, index) {
+          if (index == postProvider.posts.length) {
+            return Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: FilledButton(
+                  onPressed: postProvider.isLoadingMore
+                      ? null
+                      : postProvider.loadMorePosts,
+                  child: postProvider.isLoadingMore
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text('Load more posts'),
+                ),
+              ),
+            );
+          }
+
           final post = postProvider.posts[index];
 
-          return Card(
-            child: ListTile(
-              title: Text(post.title),
-              subtitle: Text(
-                post.content,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/post/${post.id}'),
+          return Padding(
+            padding: EdgeInsets.only(bottom: 20),
+            child: PostCard(
+              post: post,
+              onTap: () {
+                context.push('/post/${post.id}');
+              },
             ),
           );
         },

@@ -13,7 +13,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _hidePassword = true;
 
   @override
   void dispose() {
@@ -23,11 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
-    FocusScope.of(context).unfocus();
-
-    final isValid = _formKey.currentState?.validate() ?? false;
-
-    if (!isValid) {
+    if (!_formKey.currentState!.validate()) {
       return;
     }
 
@@ -61,12 +56,17 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = context.watch<AuthProvider>();
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          onPressed: () {
-            context.go('/');
-          },
-          icon: Icon(Icons.arrow_back),
-          tooltip: 'Back to posts',
+        leadingWidth: 64,
+        titleSpacing: 24,
+        leading: Padding(
+          padding: EdgeInsets.only(left: 8),
+          child: IconButton(
+            onPressed: () {
+              context.go('/');
+            },
+            icon: Icon(Icons.arrow_back),
+            tooltip: 'Back to posts',
+          ),
         ),
         title: Text("Login"),
       ),
@@ -94,7 +94,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    autofillHints: [AutofillHints.email],
                     decoration: InputDecoration(
                       labelText: 'Email',
                       border: OutlineInputBorder(),
@@ -117,23 +116,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   SizedBox(height: 16),
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: _hidePassword,
-                    autofillHints: [AutofillHints.newPassword],
+                    obscureText: true,
                     decoration: InputDecoration(
                       labelText: 'Password',
                       border: OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        onPressed: () => {
-                          setState(() {
-                            _hidePassword = !_hidePassword;
-                          }),
-                        },
-                        icon: Icon(
-                          _hidePassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                        ),
-                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -145,9 +131,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       }
 
                       return null;
-                    },
-                    onFieldSubmitted: (_) {
-                      if (!authProvider.isLoading) _login();
                     },
                   ),
 

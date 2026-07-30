@@ -9,9 +9,7 @@ class CommentService {
         .from('comments')
         .select('''
           *,
-          profile:profiles!comments_user_id_profiles_fkey (
-            display_name
-          )
+          comment_images (*)
         ''')
         .eq('post_id', postId)
         .order('created_at', ascending: true);
@@ -42,13 +40,12 @@ class CommentService {
         .insert({
           'post_id': postId,
           'user_id': user.id,
+          'email': user.email,
           'content': trimmedContent,
         })
         .select('''
           *,
-          profile:profiles!comments_user_id_profiles_fkey (
-            display_name
-          )
+          comment_images (*)
         ''')
         .single();
 
@@ -81,9 +78,7 @@ class CommentService {
         .eq('user_id', user.id)
         .select('''
           *,
-          profile:profiles!comments_user_id_profiles_fkey (
-            display_name
-          )
+          comment_images (*)
         ''')
         .single();
 
@@ -97,10 +92,24 @@ class CommentService {
       throw AuthApiException('You must be logged in to delete a comment.');
     }
 
+    final imageRows = await _supabase
+        .from('comment_images')
+        .select('storage_path')
+        .eq('comment_id', commentId)
+        .eq('user_id', user.id);
+
+    final storagePaths = imageRows.map<String>((image) {
+      return image['storage_path'] as String;
+    }).toList();
+
     await _supabase
         .from('comments')
         .delete()
         .eq('id', commentId)
         .eq('user_id', user.id);
+
+    if (storagePaths.isNotEmpty) {
+      await _supabase.storage.from('comment-images').remove(storagePaths);
+    }
   }
 }

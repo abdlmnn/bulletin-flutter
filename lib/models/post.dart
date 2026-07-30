@@ -3,6 +3,7 @@ import 'package:bulletin/models/post_image.dart';
 class Post {
   final int id;
   final String? userId;
+  final String email;
   final String title;
   final String content;
   final String? imageUrl;
@@ -13,6 +14,7 @@ class Post {
   const Post({
     required this.id,
     required this.userId,
+    required this.email,
     required this.title,
     required this.content,
     this.imageUrl,
@@ -26,6 +28,7 @@ class Post {
     return Post(
       id: json['id'] as int,
       userId: json['user_id'] as String?,
+      email: json['email'] as String? ?? 'Unknown email',
       title: json['title'] as String,
       content: json['content'] as String,
       imageUrl: json['image_url'] as String?,

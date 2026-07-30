@@ -33,7 +33,6 @@ class CommentProvider extends ChangeNotifier {
         ..addAll(comments);
     } catch (error, stackTrace) {
       debugPrint('Fetch comments error: $error');
-
       debugPrintStack(stackTrace: stackTrace);
 
       _errorMessage = 'Unable to load comments.';
@@ -43,12 +42,12 @@ class CommentProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> createComment({
+  Future<int?> createComment({
     required int postId,
     required String content,
   }) async {
     if (_isSubmitting) {
-      return false;
+      return null;
     }
 
     final trimmedContent = content.trim();
@@ -57,7 +56,7 @@ class CommentProvider extends ChangeNotifier {
       _errorMessage = 'Comment cannot be empty.';
       notifyListeners();
 
-      return false;
+      return null;
     }
 
     _isSubmitting = true;
@@ -72,7 +71,7 @@ class CommentProvider extends ChangeNotifier {
 
       _comments.add(comment);
 
-      return true;
+      return comment.id;
     } catch (error, stackTrace) {
       debugPrint('Create comment error: $error');
 
@@ -80,7 +79,7 @@ class CommentProvider extends ChangeNotifier {
 
       _errorMessage = 'Unable to create comment.';
 
-      return false;
+      return null;
     } finally {
       _isSubmitting = false;
       notifyListeners();
@@ -166,14 +165,4 @@ class CommentProvider extends ChangeNotifier {
     }
   }
 
-  void clearComments() {
-    _comments.clear();
-    _errorMessage = null;
-    notifyListeners();
-  }
-
-  void clearError() {
-    _errorMessage = null;
-    notifyListeners();
-  }
 }

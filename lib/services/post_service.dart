@@ -11,7 +11,21 @@ class PostService {
       throw const AuthApiException('You must be logged in to delete a post');
     }
 
+    final imageRows = await _supabase
+        .from('post_images')
+        .select('storage_path')
+        .eq('post_id', id)
+        .eq('user_id', user.id);
+
+    final storagePaths = imageRows.map<String>((image) {
+      return image['storage_path'] as String;
+    }).toList();
+
     await _supabase.from('posts').delete().eq('id', id).eq('user_id', user.id);
+
+    if (storagePaths.isNotEmpty) {
+      await _supabase.storage.from('post-images').remove(storagePaths);
+    }
   }
 
   Future<void> updatePost({
@@ -49,14 +63,18 @@ class PostService {
     return Post.fromJson(response);
   }
 
-  Future<List<Post>> getPosts() async {
+  Future<List<Post>> getPosts({
+    required int from,
+    required int limit,
+  }) async {
     final response = await _supabase
         .from('posts')
         .select('''
                 *,
                 post_images (*)
               ''')
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .range(from, from + limit - 1);
 
     return response.map<Post>((json) => Post.fromJson(json)).toList();
   }
@@ -75,6 +93,7 @@ class PostService {
         .from('posts')
         .insert({
           'user_id': user.id,
+          'email': user.email,
           'title': title.trim(),
           'content': content.trim(),
         })

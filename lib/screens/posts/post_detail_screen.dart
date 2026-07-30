@@ -143,37 +143,27 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final post = _post;
-
-    final isOwner = post != null && _currentUserId == post.userId;
-
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios),
-          tooltip: 'Back to posts',
-          onPressed: () {
-            context.go('/');
-          },
+        leadingWidth: 64,
+        titleSpacing: 24,
+        leading: Padding(
+          padding: EdgeInsets.only(left: 8),
+          child: IconButton(
+            icon: Icon(Icons.arrow_back_ios),
+            tooltip: 'Back to posts',
+            onPressed: () {
+              context.go('/');
+            },
+          ),
         ),
-        title: Text('Post Details'),
-        actions: [
-          if (isOwner) ...[
-            IconButton(
-              tooltip: 'Edit post',
-              icon: Icon(Icons.edit),
-              onPressed: () {
-                context.go('/post/${widget.id}/edit');
-              },
-            ),
-
-            IconButton(
-              tooltip: 'Delete post',
-              icon: Icon(Icons.delete_outline),
-              onPressed: _confirmDeletePost,
-            ),
-          ],
-        ],
+        title: Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: Text('View Post'),
+          ),
+        ),
       ),
 
       body: _buildBody(),
@@ -215,6 +205,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       return Center(child: Text('Post not found.'));
     }
 
+    final isOwner = _currentUserId == post.userId;
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(24),
       child: Center(
@@ -223,13 +215,64 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                post.title,
-                style: Theme.of(context).textTheme.headlineMedium,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      post.title,
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                  ),
+                  if (isOwner)
+                    PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          context.go('/post/${post.id}/edit');
+                        }
+
+                        if (value == 'delete') {
+                          _confirmDeletePost();
+                        }
+                      },
+                      itemBuilder: (context) {
+                        return [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_outlined),
+                                SizedBox(width: 8),
+                                Text('Edit'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline),
+                                SizedBox(width: 8),
+                                Text('Delete'),
+                              ],
+                            ),
+                          ),
+                        ];
+                      },
+                    ),
+                ],
               ),
               SizedBox(height: 8),
               Text(
-                'Posted ${_formatDate(post.createdAt)}',
+                post.email,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                _formatDate(post.createdAt),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               SizedBox(height: 24),

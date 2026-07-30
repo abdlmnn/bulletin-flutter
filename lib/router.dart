@@ -6,9 +6,22 @@ import 'package:bulletin/screens/posts/post_detail_screen.dart';
 import 'package:bulletin/screens/posts/post_list_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
+  redirect: (context, state) {
+    final user = Supabase.instance.client.auth.currentUser;
+    final protectedRoute =
+        state.matchedLocation == '/post/create' ||
+        state.matchedLocation.endsWith('/edit');
+
+    if (protectedRoute && user == null) {
+      return '/login';
+    }
+
+    return null;
+  },
   routes: [
     GoRoute(
       path: '/',
